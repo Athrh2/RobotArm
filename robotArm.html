@@ -25,13 +25,23 @@
     <script type="text/javascript" src="Common/MVnew.js"></script>
 </head>
 <body style="background-color: #fff;">
-    <canvas id="gl-canvas" width="600" height="500"></canvas>
-    <div style="font-family: sans-serif; padding: 10px;">
-        <b>Robot Arm on Table</b><br/>
-        Base Rotation: <input id="slider1" type="range" min="-180" max="180" step="10" value="0" /><br/>
-        Lower Arm: <input id="slider2" type="range" min="-180" max="180" step="10" value="0" /><br/>
-        Upper Arm: <input id="slider3" type="range" min="-180" max="180" step="10" value="15" /><br/>
-        <button onclick="window.location.reload()">Reset View</button>
+    <div style="display: flex;">
+        <canvas id="gl-canvas" width="600" height="500"></canvas>
+        <div style="font-family: sans-serif; padding: 10px;">
+            <h3>Robot Controls</h3>
+            Base: <input id="slider1" type="range" min="-180" max="180" step="10" value="0" /><br><br>
+            Lower: <input id="slider2" type="range" min="-180" max="180" step="10" value="0" /><br><br>
+            Upper: <input id="slider3" type="range" min="-180" max="180" step="10" value="15" /><br><br>
+            
+            Wrist Rotation: <input id="slider4" type="range" min="-90" max="90" step="10" value="0" /><br><br>
+            
+            <button id="grabBtn" style="padding: 10px; font-weight: bold; cursor: pointer; background-color: #ff3399; color: white; border: none;">
+                GRAB / DROP OBJECT
+            </button>
+            <br><br>
+
+            <button onclick="window.location.reload()">Reset View</button>
+        </div>
     </div>
     <script type="text/javascript" src="robotArm.js"></script>
 </body>
