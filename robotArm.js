@@ -3,7 +3,6 @@
 var canvas, gl, program;
 
 // --- JOINT VARIABLES ---
-// [Updated] Added 4th value for Wrist Rotation
 var theta = [0, 0, 15, 0]; 
 var BASE = 0, LOWER_ARM = 1, UPPER_ARM = 2, WRIST = 3;
 
@@ -13,20 +12,20 @@ var LOWER_H = 4.0, LOWER_W = 1.0;
 var UPPER_H = 3.5, UPPER_W = 1.0;
 
 // --- MATRICES ---
-var modelViewMatrix;
-var modelViewMatrixLoc, vColorLoc;
-var viewMatrix; 
+var modelViewMatrix, modelViewMatrixLoc, vColorLoc, viewMatrix; 
+var points = [], colors = [];
 
-var points = [];
-var colors = [];
-
-// --- VARIABLES ---
+// --- OBJECT VARIABLES ---
 var gripperGap = 0.2;         
 var isObjectCaught = false;   
 var objectPosition = vec3(5.0, -1.4, 0.0); 
 var trueWristPosition = vec3(0, 0, 0); 
 
-// Vertices & Colors (Standard)
+// --- AUTOMATION VARIABLES ---
+var isAutomating = false;
+var automationStep = 0; 
+var lerpSpeed = 1.5; 
+
 var vertices = [
     vec3(-0.5, -0.5,  0.5), vec3(-0.5,  0.5,  0.5),
     vec3( 0.5,  0.5,  0.5), vec3( 0.5, -0.5,  0.5),
@@ -35,8 +34,8 @@ var vertices = [
 ];
 
 var faceColors = [
-    vec4(1.0, 0.0, 0.0, 1.0), vec4(0.0, 1.0, 0.0, 1.0),
-    vec4(0.0, 0.0, 1.0, 1.0), vec4(1.0, 1.0, 0.0, 1.0),
+    vec4(1.0, 1.0, 0.0, 1.0), vec4(0.0, 1.0, 0.0, 1.0),
+    vec4(1.0, 0.0, 0.0, 1.0), vec4(1.0, 1.0, 0.0, 1.0),
     vec4(1.0, 0.0, 1.0, 1.0), vec4(0.0, 1.0, 1.0, 1.0)
 ];
 
@@ -64,18 +63,112 @@ function drawSolidCube(w, h, d, color) {
     gl.enableVertexAttribArray(vColorLoc);
 }
 
-function drawRobotCube(w, h, d) {
-    var s = scale(w, h, d);
-    var instanceMatrix = mult(modelViewMatrix, s);
-    gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(instanceMatrix));
-    gl.drawArrays(gl.TRIANGLES, 0, 36);
+function updateSliderUI() {
+    document.getElementById("slider1").value = theta[BASE];
+    document.getElementById("slider2").value = theta[LOWER_ARM];
+    document.getElementById("slider3").value = theta[UPPER_ARM];
+    document.getElementById("slider4").value = theta[WRIST];
+}
+
+function performGrab() {
+    var msg = document.getElementById("statusLabel");
+    if(isObjectCaught) {
+        isObjectCaught = false; 
+        gripperGap = 0.2; 
+        objectPosition = vec3(trueWristPosition[0], -1.4, trueWristPosition[2]);
+        if(msg) msg.innerHTML = "Object Dropped";
+    } else {
+        var dx = trueWristPosition[0] - objectPosition[0];
+        var dy = trueWristPosition[1] - objectPosition[1];
+        var dz = trueWristPosition[2] - objectPosition[2];
+        var dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+        if (dist < 3.8) { 
+            isObjectCaught = true; 
+            gripperGap = 0.0; 
+            if(msg) msg.innerHTML = "Object Picked Up!";
+        } else {
+            if(msg) msg.innerHTML = "Too far! Move closer (" + dist.toFixed(1) + ")";
+        }
+    }
+}
+
+function handleAutomation() {
+    if (!isAutomating) return;
+
+    function moveToward(index, target, speed = lerpSpeed) {
+        if (Math.abs(theta[index] - target) < speed) {
+            theta[index] = target;
+            return true;
+        }
+        theta[index] += (theta[index] < target) ? speed : -speed;
+        return false;
+    }
+
+    var msg = document.getElementById("statusLabel");
+
+    switch (automationStep) {
+        case 1: // ALIGN BASE
+            if(msg) msg.innerHTML = "Auto: Aligning Base...";
+            if (moveToward(BASE, -180)) automationStep = 2;
+            break;
+        case 2: // REACH
+            if(msg) msg.innerHTML = "Auto: Reaching for Object...";
+            var lReached = moveToward(LOWER_ARM, 45);
+            var uReached = moveToward(UPPER_ARM, 100); 
+            if (lReached && uReached) automationStep = 3;
+            break;
+        case 3: // GRAB
+            performGrab();
+            if(isObjectCaught) {
+                automationStep = 4;
+            } else {
+                isAutomating = false;
+            }
+            break;
+        case 4: // LIFT
+            if(msg) msg.innerHTML = "Auto: Lifting...";
+            var lLifted = moveToward(LOWER_ARM, -10);
+            var uLifted = moveToward(UPPER_ARM, 20);
+            if (lLifted && uLifted) automationStep = 5;
+            break;
+
+        case 5: // ROTATE TO DROP ZONE
+        if(msg) msg.innerHTML = "Auto: Moving to Drop...";
+        if (moveToward(BASE, 5)) automationStep = 6;
+        break;
+
+    case 6: // POSITION FOR DROP
+        if(msg) msg.innerHTML = "Auto: Positioning for Drop...";
+        // Move joints to the specific placement height
+        var lDropPos = moveToward(LOWER_ARM, 35);
+        var uDropPos = moveToward(UPPER_ARM, 95);
+        if (lDropPos && uDropPos) automationStep = 7; // Proceed to the actual drop
+        break;
+
+    case 7: // THE DROP SWITCH CASE
+        if(msg) msg.innerHTML = "Auto: Releasing Object...";
+        isObjectCaught = false; // Release the object
+        gripperGap = 0.2; // Open the fingers
+        
+        // Finalize the object's new position on the table
+        objectPosition = vec3(trueWristPosition[0], -1.75, trueWristPosition[2]); 
+        
+        // Finish automation
+        isAutomating = false; 
+        automationStep = 0;
+        if(msg) msg.innerHTML = "Task Complete!";
+        break;
+    }
+    updateSliderUI();
 }
 
 window.onload = function init() {
     canvas = document.getElementById("gl-canvas");
     gl = WebGLUtils.setupWebGL(canvas);
+    if (!gl) { alert("WebGL isn't available"); }
+
     gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clearColor(1.0, 1.0, 1.0, 1.0);
+    gl.clearColor(0.95, 0.95, 0.95, 1.0);
     gl.enable(gl.DEPTH_TEST);
 
     program = initShaders(gl, "vertex-shader", "fragment-shader");
@@ -98,152 +191,117 @@ window.onload = function init() {
     gl.enableVertexAttribArray(vPosition);
 
     modelViewMatrixLoc = gl.getUniformLocation(program, "modelViewMatrix");
-    
     var projectionMatrix = ortho(-15, 15, -10, 10, -50, 50);
     gl.uniformMatrix4fv(gl.getUniformLocation(program, "projectionMatrix"), false, flatten(projectionMatrix));
 
-    // Sliders
-    document.getElementById("slider1").oninput = e => theta[BASE] = e.target.value;
-    document.getElementById("slider2").oninput = e => theta[LOWER_ARM] = e.target.value;
-    document.getElementById("slider3").oninput = e => theta[UPPER_ARM] = e.target.value;
-    // [Updated] Wrist Slider
-    document.getElementById("slider4").oninput = e => theta[WRIST] = e.target.value;
+    // UI Listeners
+    document.getElementById("slider1").oninput = e => { theta[BASE] = parseFloat(e.target.value); isAutomating = false; };
+    document.getElementById("slider2").oninput = e => { theta[LOWER_ARM] = parseFloat(e.target.value); isAutomating = false; };
+    document.getElementById("slider3").oninput = e => { theta[UPPER_ARM] = parseFloat(e.target.value); isAutomating = false; };
+    document.getElementById("slider4").oninput = e => { theta[WRIST] = parseFloat(e.target.value); isAutomating = false; };
+    document.getElementById("grabBtn").onclick = function() { isAutomating = false; performGrab(); };
+    document.getElementById("autoStartBtn").onclick = function() { isAutomating = true; automationStep = 1; };
+    document.getElementById("autoStopBtn").onclick = function() {
+    // 1. Force the automation to stop immediately
+    isAutomating = false; 
+    automationStep = 0; 
 
-    // Button Logic
-    var btn = document.getElementById("grabBtn");
-    if(btn) {
-        btn.onclick = function() {
-            if(isObjectCaught) {
-                // RELEASE
-                isObjectCaught = false; 
-                gripperGap = 0.2; 
-                objectPosition = vec3(trueWristPosition[0], -1.4, trueWristPosition[2]);
-                console.log("Object PLACED at: ", objectPosition);
-            } else {
-                // GRASP
-                var dist = Math.sqrt(
-                    Math.pow(trueWristPosition[0] - objectPosition[0], 2) +
-                    Math.pow(trueWristPosition[2] - objectPosition[2], 2)
-                );
-                
-                if (dist < 2.5) { 
-                    isObjectCaught = true;
-                    gripperGap = 0.0; 
-                    console.log("Object PICKED!");
-                } else {
-                    alert("Missed! Distance: " + dist.toFixed(2) + ". Move closer.");
-                }
-            }
-        };
-    }
+    // 2. Reset all joint angles to original starting position
+    theta = [0, 0, 15, 0]; 
+
+    // 3. Reset the object state
+    isObjectCaught = false; 
+    gripperGap = 0.2; // Open the fingers
+    objectPosition = vec3(5.0, -1.4, 0.0); // Move cube back to start
+
+    // 4. Update the UI Sliders so they match the reset angles
+    updateSliderUI();
+
+    // 5. Update the status label
+    var msg = document.getElementById("statusLabel");
+    if(msg) msg.innerHTML = "System Reset: Ready";
+};
 
     render();
 };
 
-// --- GRIPPER DRAWING ---
 function drawGripper(rootMatrix) {
-    var railColor = vec4(0.2, 0.2, 0.2, 1.0);   // Dark Grey
-    
-    // [Updated] Pink Color for Fingers
-    var fingerColor = vec4(1.0, 0.2, 0.6, 1.0); // Hot Pink
-
-    // Wrist Rail
     var rail = mult(rootMatrix, translate(0, 0.2, 0)); 
     modelViewMatrix = rail;
-    drawSolidCube(2.4, 0.4, 0.4, railColor); 
-
-    // Left Finger
-    var leftPos = -0.6 - gripperGap; 
-    var leftFinger = mult(rootMatrix, translate(leftPos, 1.0, 0)); 
+    drawSolidCube(2.4, 0.4, 0.4, vec4(0.2, 0.2, 0.2, 1.0)); 
+    var leftFinger = mult(rootMatrix, translate(-0.6 - gripperGap, 1.1, 0)); 
     modelViewMatrix = leftFinger;
-    drawSolidCube(0.3, 1.6, 0.8, fingerColor); 
-
-    // Right Finger
-    var rightPos = 0.6 + gripperGap;
-    var rightFinger = mult(rootMatrix, translate(rightPos, 1.0, 0)); 
+    drawSolidCube(0.3, 1.8, 0.8, vec4(1.0, 0.2, 0.6, 1.0)); 
+    var rightFinger = mult(rootMatrix, translate(0.6 + gripperGap, 1.1, 0)); 
     modelViewMatrix = rightFinger;
-    drawSolidCube(0.3, 1.6, 0.8, fingerColor); 
+    drawSolidCube(0.3, 1.8, 0.8, vec4(1.0, 0.2, 0.6, 1.0)); 
 }
 
 function render() {
+    handleAutomation();
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    // 1. CAMERA
-    var rX = rotateX(30);
-    var rY = rotateY(25);
-    viewMatrix = mult(rX, rY); 
-
-    // 2. SCENE
-    var tableModelMatrix = mult(viewMatrix, translate(0, -2.0, 0));
-    modelViewMatrix = tableModelMatrix;
-    drawSolidCube(15.0, 0.2, 8.0, vec4(0, 0, 0, 1)); 
-
-    var grey = vec4(0.8, 0.8, 0.8, 1.0);
-    var legPositions = [
-        translate(-7.0, -4.5,  3.5), translate( 7.0, -4.5,  3.5),
-        translate(-7.0, -4.5, -3.5), translate( 7.0, -4.5, -3.5)
-    ];
-    for(var i=0; i<4; i++) {
-        modelViewMatrix = mult(viewMatrix, legPositions[i]);
-        drawSolidCube(0.4, 5.0, 0.4, grey);
-    }
-
-    // 3. ROBOT
-    var robotXlate = translate(0, -1.9, 0); 
-    var robotRoot = mult(viewMatrix, robotXlate);
     
-    // Base
-    robotRoot = mult(robotRoot, rotateY(theta[BASE]));
-    modelViewMatrix = mult(robotRoot, translate(0, 0.5, 0));
-    drawRobotCube(5.0, 1.0, 2.0);
+    // 1. SET GLOBAL CAMERA VIEW
+    viewMatrix = mult(rotateX(30), rotateY(25)); 
 
-    // Lower Arm
-    var lowerArmRoot = mult(robotRoot, translate(0, 1.0, 0));
-    lowerArmRoot = mult(lowerArmRoot, rotateZ(theta[LOWER_ARM]));
-    modelViewMatrix = mult(lowerArmRoot, translate(0, 2.0, 0));
-    drawRobotCube(1.0, 4.0, 1.0);
+    // 2. DRAW THE BLACK TABLE (FLOOR) FIRST
+    // This provides a fixed reference point for the arm and the object
+    modelViewMatrix = mult(viewMatrix, translate(0, -2.0, 0));
+    drawSolidCube(20.0, 0.2, 12.0, vec4(0.3, 0.3, 0.3, 1)); 
 
-    // Upper Arm
-    var upperArmRoot = mult(lowerArmRoot, translate(0, 4.0, 0));
-    upperArmRoot = mult(upperArmRoot, rotateZ(theta[UPPER_ARM]));
-    modelViewMatrix = mult(upperArmRoot, translate(0, 1.75, 0));
-    drawRobotCube(1.0, 3.5, 1.0);
+    // --- ROBOT TRANSFORMATION HIERARCHY ---
 
-    // --- GRIPPER WITH ROTATION ---
-    // Move to top of upper arm
-    var gripperPos = mult(upperArmRoot, translate(0, 3.5, 0));
-    // [Updated] Apply Wrist Rotation (RotateY spins the wrist)
-    var gripperRoot = mult(gripperPos, rotateY(theta[WRIST]));
-    
-    drawGripper(gripperRoot);
-
-    // --- LOGIC: SHADOW MATRIX ---
-    // Re-calculate world position logic (ignoring rotation for distance check)
-    var wRoot = translate(0, -1.9, 0);
+    // 3. THE BASE (Yellow Block)
+    // Position it on the floor level
+    var wRoot = translate(0, -1.9, 0); 
     wRoot = mult(wRoot, rotateY(theta[BASE]));
-    var wLower = mult(wRoot, translate(0, 1.0, 0));
-    wLower = mult(wLower, rotateZ(theta[LOWER_ARM]));
-    var wUpper = mult(wLower, translate(0, 4.0, 0));
-    wUpper = mult(wUpper, rotateZ(theta[UPPER_ARM]));
-    var wGripper = mult(wUpper, translate(0, 3.5, 0));
     
-    if(wGripper[0].length === undefined) {
-        trueWristPosition = vec3(wGripper[12], wGripper[13], wGripper[14]);
-    } else {
-        trueWristPosition = vec3(wGripper[0][3], wGripper[1][3], wGripper[2][3]);
-    }
+    // 4. LOWER ARM JOINT (Green)
+    // MUST translate to the top of the base (0.5 units up) BEFORE rotating.
+    // This "pins" the bottom of the green arm to the yellow block.
+    var wLower = mult(wRoot, translate(0, 0.5, 0)); 
+    wLower = mult(wLower, rotateZ(theta[LOWER_ARM]));
+    
+    // 5. UPPER ARM JOINT (Red)
+    // Pin it to the end of the lower arm (4.0 units up)
+    var wUpper = mult(wLower, translate(0, 4.0, 0)); 
+    wUpper = mult(wUpper, rotateZ(theta[UPPER_ARM]));
+    
+    // 6. WRIST & GRIPPER
+    // The wrist is at the end of the upper arm (3.5 units up)
+    var wGripper = mult(wUpper, translate(0, 3.5, 0));
+    trueWristPosition = vec3(wGripper[0][3], wGripper[1][3], wGripper[2][3]);
 
-    // --- DRAW OBJECT ---
+    // --- DRAWING ACTUAL PARTS ---
+
+    // Draw Yellow Base: Offset by half its height (0.5) to draw correctly
+    modelViewMatrix = mult(viewMatrix, wRoot);
+    modelViewMatrix = mult(modelViewMatrix, translate(0, 0.5, 0)); 
+    drawSolidCube(5.0, 1.0, 2.0, vec4(1, 1, 0, 1)); 
+
+    // Draw Green Lower Arm: Offset by half its height (2.0)
+    modelViewMatrix = mult(viewMatrix, wLower);
+    modelViewMatrix = mult(modelViewMatrix, translate(0, 2.0, 0)); 
+    drawSolidCube(1.0, 4.0, 1.0, vec4(0, 1, 0, 1)); 
+
+    // Draw Red Upper Arm: Offset by half its height (1.75)
+    modelViewMatrix = mult(viewMatrix, wUpper);
+    modelViewMatrix = mult(modelViewMatrix, translate(0, 1.75, 0)); 
+    drawSolidCube(1.0, 3.5, 1.0, vec4(1, 0, 0, 1)); 
+
+    // Draw Gripper (oriented by the wrist rotation)
+    drawGripper(mult(mult(viewMatrix, wGripper), rotateY(theta[WRIST])));
+
+    // 7. DRAW RED OBJECT
     if (isObjectCaught) {
-        // [Updated] Picked Object follows Gripper Rotation
-        var heldObject = mult(gripperRoot, translate(0, 1.0, 0)); 
-        modelViewMatrix = heldObject;
+        // Parented to the gripper: use gripper matrix and offset for fingers
+        modelViewMatrix = mult(mult(mult(viewMatrix, wGripper), rotateY(theta[WRIST])), translate(0, 1.4, 0));
         drawSolidCube(1.0, 1.0, 1.0, vec4(1, 0, 0, 1)); 
     } else {
-        var freeObject = mult(viewMatrix, translate(objectPosition[0], objectPosition[1], objectPosition[2]));
-        modelViewMatrix = freeObject;
+        // Static on floor: use viewMatrix + global objectPosition
+        modelViewMatrix = mult(viewMatrix, translate(objectPosition[0], objectPosition[1], objectPosition[2]));
         drawSolidCube(1.0, 1.0, 1.0, vec4(1, 0, 0, 1)); 
     }
-
+    
     requestAnimationFrame(render);
 }
