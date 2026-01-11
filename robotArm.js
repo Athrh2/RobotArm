@@ -3,7 +3,7 @@
 var canvas, gl, program;
 
 // --- JOINT VARIABLES ---
-var theta = [0, 0, 15, 0]; 
+var theta = [0, 0, 15, 90]; 
 var BASE = 0, LOWER_ARM = 1, UPPER_ARM = 2, WRIST = 3;
 
 // --- DIMENSIONS ---
@@ -76,7 +76,10 @@ function performGrab() {
         isObjectCaught = false; 
         gripperGap = 0.2; 
         objectPosition = vec3(trueWristPosition[0], -1.4, trueWristPosition[2]);
-        if(msg) msg.innerHTML = "Object Dropped";
+        if(msg) {
+            msg.style.color = "#28a745";
+            msg.innerHTML = "Object Dropped";
+        }
     } else {
         var dx = trueWristPosition[0] - objectPosition[0];
         var dy = trueWristPosition[1] - objectPosition[1];
@@ -85,15 +88,40 @@ function performGrab() {
         if (dist < 3.8) { 
             isObjectCaught = true; 
             gripperGap = 0.0; 
-            if(msg) msg.innerHTML = "Object Picked Up!";
+            if(msg) {
+                msg.style.color = "#28a745";
+                msg.innerHTML = "Object Picked Up!";
+            }
         } else {
-            if(msg) msg.innerHTML = "Too far! Move closer (" + dist.toFixed(1) + ")";
+            if(msg) {
+                msg.style.color = "#dc3545";
+                msg.innerHTML = "Too far! Move closer (" + dist.toFixed(1) + ")";
+            }
         }
     }
 }
 
+function toggleManualControls(enable) {
+    ["slider1","slider2","slider3","slider4","grabBtn"].forEach(id => {
+        document.getElementById(id).disabled = !enable;
+    });
+}   
+    
 function handleAutomation() {
-    if (!isAutomating) return;
+    
+    if (!isAutomating) {
+        toggleManualControls(true);
+        return;
+    }
+
+    // If during automation but somehow lost the object during a move step 
+    // where we should have it (Steps 4, 5, 6), stop automation.
+    if ((automationStep > 3 && automationStep < 7) && !isObjectCaught) {
+        isAutomating = false;
+        automationStep = 0;
+        return;
+    }
+    toggleManualControls(false);
 
     function moveToward(index, target, speed = lerpSpeed) {
         if (Math.abs(theta[index] - target) < speed) {
@@ -108,11 +136,17 @@ function handleAutomation() {
 
     switch (automationStep) {
         case 1: // ALIGN BASE
-            if(msg) msg.innerHTML = "Auto: Aligning Base...";
+            if(msg) {
+                msg.style.color = "#2850a7ff";
+                msg.innerHTML = "Auto: Aligning Base...";
+            }
             if (moveToward(BASE, -180)) automationStep = 2;
             break;
         case 2: // REACH
-            if(msg) msg.innerHTML = "Auto: Reaching for Object...";
+            if(msg) {
+                msg.style.color = "#2850a7ff";
+                msg.innerHTML = "Auto: Reaching for Object...";
+            }
             var lReached = moveToward(LOWER_ARM, 45);
             var uReached = moveToward(UPPER_ARM, 100); 
             if (lReached && uReached) automationStep = 3;
@@ -126,19 +160,28 @@ function handleAutomation() {
             }
             break;
         case 4: // LIFT
-            if(msg) msg.innerHTML = "Auto: Lifting...";
+            if(msg) {
+                msg.style.color = "#2850a7ff";
+                msg.innerHTML = "Auto: Lifting...";
+            }
             var lLifted = moveToward(LOWER_ARM, -10);
             var uLifted = moveToward(UPPER_ARM, 20);
             if (lLifted && uLifted) automationStep = 5;
             break;
 
         case 5: // ROTATE TO DROP ZONE
-        if(msg) msg.innerHTML = "Auto: Moving to Drop...";
+        if(msg) {
+            msg.style.color = "#2850a7ff";
+            msg.innerHTML = "Auto: Moving to Drop...";
+        }
         if (moveToward(BASE, 5)) automationStep = 6;
         break;
 
     case 6: // POSITION FOR DROP
-        if(msg) msg.innerHTML = "Auto: Positioning for Drop...";
+        if(msg) {
+            msg.style.color = "#2850a7ff";
+            msg.innerHTML = "Auto: Positioning for Drop...";
+        }
         // Move joints to the specific placement height
         var lDropPos = moveToward(LOWER_ARM, 35);
         var uDropPos = moveToward(UPPER_ARM, 95);
@@ -146,7 +189,10 @@ function handleAutomation() {
         break;
 
     case 7: // THE DROP SWITCH CASE
-        if(msg) msg.innerHTML = "Auto: Releasing Object...";
+        if(msg) {
+            msg.style.color = "#2850a7ff";
+            msg.innerHTML = "Auto: Releasing Object...";
+        }
         isObjectCaught = false; // Release the object
         gripperGap = 0.2; // Open the fingers
         
@@ -156,7 +202,10 @@ function handleAutomation() {
         // Finish automation
         isAutomating = false; 
         automationStep = 0;
-        if(msg) msg.innerHTML = "Task Complete!";
+        if(msg) {
+            msg.style.color = "#28a745";
+            msg.innerHTML = "Task Complete!";
+        }
         break;
     }
     updateSliderUI();
@@ -195,19 +244,60 @@ window.onload = function init() {
     gl.uniformMatrix4fv(gl.getUniformLocation(program, "projectionMatrix"), false, flatten(projectionMatrix));
 
     // UI Listeners
-    document.getElementById("slider1").oninput = e => { theta[BASE] = parseFloat(e.target.value); isAutomating = false; };
-    document.getElementById("slider2").oninput = e => { theta[LOWER_ARM] = parseFloat(e.target.value); isAutomating = false; };
-    document.getElementById("slider3").oninput = e => { theta[UPPER_ARM] = parseFloat(e.target.value); isAutomating = false; };
-    document.getElementById("slider4").oninput = e => { theta[WRIST] = parseFloat(e.target.value); isAutomating = false; };
-    document.getElementById("grabBtn").onclick = function() { isAutomating = false; performGrab(); };
-    document.getElementById("autoStartBtn").onclick = function() { isAutomating = true; automationStep = 1; };
-    document.getElementById("autoStopBtn").onclick = function() {
+    document.getElementById("slider1").oninput = e => { 
+        theta[BASE] = parseFloat(e.target.value); 
+        isAutomating = false;
+        if (modeLabel) {
+            modeLabel.style.color = "#6c757d";
+            modeLabel.innerHTML = "Manual Control (Slider)";
+        }
+    };
+    document.getElementById("slider2").oninput = e => { 
+        theta[LOWER_ARM] = parseFloat(e.target.value); 
+        isAutomating = false; 
+        if (modeLabel) {
+            modeLabel.style.color = "#6c757d";
+            modeLabel.innerHTML = "Manual Control (Slider)";
+        }
+    };
+    document.getElementById("slider3").oninput = e => { 
+        theta[UPPER_ARM] = parseFloat(e.target.value); 
+        isAutomating = false; if (modeLabel) {
+            modeLabel.style.color = "#6c757d";
+            modeLabel.innerHTML = "Manual Control (Slider)";
+        }
+    };
+    document.getElementById("slider4").oninput = e => { 
+        theta[WRIST] = parseFloat(e.target.value); 
+        isAutomating = false; 
+        if (modeLabel) {
+            modeLabel.style.color = "#6c757d";
+            modeLabel.innerHTML = "Manual Control (Slider)";
+        }
+    };
+    document.getElementById("grabBtn").onclick = function() { 
+        isAutomating = false; performGrab(); 
+    };
+    document.getElementById("autoStartStopBtn").onclick = function() { 
+        if (!isAutomating) {
+        isAutomating = true;
+        // Only start from step 1 if not in the middle of a sequence
+        if (automationStep === 0) automationStep = 1; 
+    } else {
+        // Make the button work as a Pause button too
+        isAutomating = false;
+        toggleManualControls(true);
+    }
+    };
+    document.getElementById("autoResetBtn").onclick = function() {
+    
     // 1. Force the automation to stop immediately
     isAutomating = false; 
     automationStep = 0; 
+    toggleManualControls(true);
 
     // 2. Reset all joint angles to original starting position
-    theta = [0, 0, 15, 0]; 
+    theta = [0, 0, 15, 90]; 
 
     // 3. Reset the object state
     isObjectCaught = false; 
@@ -219,8 +309,103 @@ window.onload = function init() {
 
     // 5. Update the status label
     var msg = document.getElementById("statusLabel");
-    if(msg) msg.innerHTML = "System Reset: Ready";
-};
+    if(msg) {
+        msg.style.color = "#000";
+        msg.innerHTML = "System Reset: Ready";
+    }
+    };
+    
+    const modeLabel = document.getElementById("statusLabel");
+
+    // ================= KEYBOARD CONTROLS =================
+    // Toggle Automation: Spacebar
+    // Reset Automation: R
+    // Base: A / D
+    // Lower Arm: W / S
+    // Upper Arm: I / K
+    // Wrist: J / L
+    // Grab/Release: Enter
+    
+    window.addEventListener("keydown", function(e) {
+        const key = e.key.toLowerCase();
+        const modeLabel = document.getElementById("statusLabel");
+
+        // 1. GLOBAL OVERRIDES (Always work, even during automation)
+        if (key === 'r') { 
+            document.getElementById("autoResetBtn").click(); 
+            return; 
+        }
+
+        if (key === " ") { 
+            // Prevent page from scrolling down when pressing space
+            e.preventDefault(); 
+            // Directly trigger the button logic to ensure they stay in sync
+            document.getElementById("autoStartStopBtn").click();
+            return;
+        }
+
+        // 2. GUARD CLAUSE (Block movement keys only during automation)
+        if (isAutomating) return; 
+
+        // 3. MOVEMENT CONTROLS
+        const step = 3;
+        let updated = false;
+        if (modeLabel) {
+            modeLabel.style.color = "#007bff";
+            modeLabel.innerHTML = "Manual Control (Keyboard)";
+        }
+
+        switch (e.key.toLowerCase()) {
+            case 'a':
+                theta[BASE] -= step;
+                updated = true;
+                break;
+            case 'd':
+                theta[BASE] += step;
+                updated = true;
+                break;
+
+            case 'w':
+                theta[LOWER_ARM] += step;
+                updated = true;
+                break;
+            case 's':
+                theta[LOWER_ARM] -= step;
+                updated = true;
+                break;
+
+            case 'i':
+                theta[UPPER_ARM] += step;
+                updated = true;
+                break;
+            case 'k':
+                theta[UPPER_ARM] -= step;
+                updated = true;
+                break;
+
+            case 'j':
+                theta[WRIST] -= step;
+                updated = true;
+                break;
+            case 'l':
+                theta[WRIST] += step;
+                updated = true;
+                break;
+
+            case "enter": 
+                performGrab(); 
+                break;
+        }
+
+        if (updated) {
+            updateSliderUI();
+            const msg = document.getElementById("statusLabel");
+            if (msg) {
+                msg.style.color = "#007bff";
+                msg.innerHTML = "Manual Control (Keyboard)";
+            }
+        }
+    });
 
     render();
 };
@@ -266,7 +451,7 @@ function render() {
     // Pin it to the end of the lower arm (4.0 units up)
     var wUpper = mult(wLower, translate(0, 4.0, 0)); 
     wUpper = mult(wUpper, rotateZ(theta[UPPER_ARM]));
-    
+
     // 6. WRIST & GRIPPER
     // The wrist is at the end of the upper arm (3.5 units up)
     var wGripper = mult(wUpper, translate(0, 3.5, 0));
@@ -302,6 +487,6 @@ function render() {
         modelViewMatrix = mult(viewMatrix, translate(objectPosition[0], objectPosition[1], objectPosition[2]));
         drawSolidCube(1.0, 1.0, 1.0, vec4(1, 0, 0, 1)); 
     }
-    
+
     requestAnimationFrame(render);
 }

@@ -2,6 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
+    <title>Robot Arm - Responsive Console</title>
     <script id="vertex-shader" type="x-shader/x-vertex">
         attribute vec4 vPosition;
         attribute vec4 vColor; 
@@ -21,29 +22,157 @@
     <script type="text/javascript" src="Common/webgl-utils.js"></script>
     <script type="text/javascript" src="Common/initShaders.js"></script>
     <script type="text/javascript" src="Common/MVnew.js"></script>
+    
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background-color: #f0f0f0;
+            font-family: sans-serif;
+            overflow: hidden; /* Prevents double scrollbars */
+        }
+
+        /* The main layout container */
+        #app {
+            display: flex;
+            flex-direction: row;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Left side: Canvas */
+        #canvasContainer {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #d1d1d1;
+            padding: 20px;
+        }
+
+        canvas {
+            border: 1px solid black;
+            background: white;
+            max-width: 100%;
+            max-height: 100%;
+            height: auto;
+            display: block;
+        }
+
+        /* Right side: Sidebar Scroll Area */
+        #sidebar {
+            flex: 0 0 400px; /* Fixed width on desktop */
+            overflow-y: auto;
+            display: flex;
+            justify-content: center; /* Centers your shadow box */
+            align-items: center;
+            padding: 20px 0;
+        }
+
+        /* YOUR ORIGINAL SHADOW BOX */
+        .control-card {
+            padding: 20px; 
+            background: #fff; 
+            border-radius: 8px; 
+            width: 320px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .slider-label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        /* Keyboard Key Styling */
+        .key-hint {
+            float: right;
+            background: #eee;
+            border: 1px solid #ccc;
+            border-bottom: 2px solid #bbb;
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            color: #333;
+        }
+
+        /* RESPONSIVE OVERRIDES */
+        @media (max-width: 850px) {
+            #app {
+                flex-direction: column; /* Stacks canvas on top of controls */
+                overflow-y: auto; 
+            }
+            #sidebar {
+                flex: none;
+                width: 100%;
+                padding: 20px;
+                box-sizing: border-box;
+            }
+            .control-card {
+                width: 100%; /* Box stretches to fit screen width on mobile */
+                box-sizing: border-box;
+            }
+            #canvasContainer {
+                flex: none;
+                height: 50vh; /* Canvas takes half the height */
+            }
+        }
+    </style>
 </head>
-<body style="background-color: #f0f0f0; font-family: sans-serif;">
-    <div style="display: flex; justify-content: center; margin-top: 20px;">
-        <canvas id="gl-canvas" width="600" height="500" style="border: 1px solid black; background: white;"></canvas>
+<body>
+    <div id="app">
         
-        <div style="padding: 20px; background: #fff; margin-left: 20px; border-radius: 8px; width: 320px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h3 style="margin-top: 0;">Robot Control Panel</h3>
-            <div style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px;">
-                <strong>Manual Mode</strong><br><br>
-                Base: <input id="slider1" type="range" min="-180" max="180" value="0" style="width:100%"/><br>
-                Lower: <input id="slider2" type="range" min="-180" max="180" value="0" style="width:100%"/><br>
-                Upper: <input id="slider3" type="range" min="-180" max="180" value="15" style="width:100%"/><br>
-                Wrist: <input id="slider4" type="range" min="-90" max="90" value="0" style="width:100%"/><br><br>
-                <button id="grabBtn" style="width: 100%; padding: 12px; background: #ff3399; color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 4px;">GRAB / DROP</button>
-            </div>
-            <div style="background: #eef2f7; padding: 15px; border-radius: 5px;">
-                <strong>Automation</strong><br><br>
-                <button id="autoStartBtn" style="width: 100%; padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">▶ Start Pick & Place</button>
-                <button id="autoStopBtn" style="width: 100%; padding: 10px; background: #dc3545; color: white; border: none; border-radius: 4px; margin-top: 5px; cursor: pointer;">⏹ Stop / Reset</button>
-                <p style="font-size: 0.85em; color: #444; margin-top:10px;">Status: <span id="statusLabel" style="color: #000; font-weight: bold;">Ready</span></p>
+        <div id="canvasContainer">
+            <canvas id="gl-canvas" width="600" height="500"></canvas>
+        </div>
+
+        <div id="sidebar">
+            <div class="control-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="margin: 0; color: #333;">Robot Control Panel</h3>
+                </div>
+    
+                <div style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-top: 15px;">
+                        <strong style="color: #666;">Manual Mode</strong>
+                        <span style="font-size: 0.8em; color: #999;">[Keyboard Controls]</span>
+                    </div>
+                    
+                    <label class="slider-label">Base Rotation <span class="key-hint">A | D</span></label>
+                    <input id="slider1" type="range" min="-180" max="180" value="0" style="width:100%"/>
+                    
+                    <label class="slider-label">Lower Arm <span class="key-hint">S | W</span></label>
+                    <input id="slider2" type="range" min="-180" max="180" value="0" style="width:100%"/>
+                    
+                    <label class="slider-label">Upper Arm <span class="key-hint">K | I</span></label>
+                    <input id="slider3" type="range" min="-180" max="180" value="15" style="width:100%"/>
+                    
+                    <label class="slider-label">Wrist Joint <span class="key-hint">J | L</span></label>
+                    <input id="slider4" type="range" min="-90" max="90" value="90" style="width:100%"/>
+                    
+                    <br><br>
+                    <button id="grabBtn" style="width: 100%; padding: 12px; background: #ff3399; color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 4px;">
+                        GRAB / DROP <span style="font-size: 1.0em; opacity: 0.8; font-weight: normal;">[Enter]</span>
+                    </button>
+                    </div>
+
+                    <div style="background: #eef2f7; padding: 15px; border-radius: 5px;">
+                        <strong>Automation (Pick & Place)</strong><br><br>
+                        <button id="autoStartStopBtn" style="width: 100%; padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            ▶ Start/Pause <span style="font-size: 1.0em; opacity: 0.8; font-weight: normal;">[Space]</span>
+                        </button>
+                        <button id="autoResetBtn" style="width: 100%; padding: 10px; background: #dc3545; color: white; border: none; border-radius: 4px; margin-top: 5px; cursor: pointer;">
+                            ⏹ Reset <span style="font-size: 1.0em; opacity: 0.8; font-weight: normal;">[R]</span>
+                        </button>
+                        <p style="font-size: 0.85em; color: #444; margin-top:10px;">Status: <span id="statusLabel" style="color: #000; font-weight: bold;">Ready</span></p>
+                    </div>
+                </div> 
             </div>
         </div>
-    </div>
-    <script type="text/javascript" src="robotArm.js"></script>
-</body>
+
+        <script type="text/javascript" src="robotArm.js"></script>
+    </body>
 </html>
