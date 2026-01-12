@@ -47,7 +47,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            background: #d1d1d1;
+            background: #b1cfbb;
             padding: 20px;
         }
 
@@ -68,9 +68,10 @@
             justify-content: center; /* Centers your shadow box */
             align-items: center;
             padding: 20px 0;
+            background: #fbd5d5;
         }
 
-        /* YOUR ORIGINAL SHADOW BOX */
+        /* ORIGINAL SHADOW BOX */
         .control-card {
             padding: 20px; 
             background: #fff; 
@@ -79,16 +80,24 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
+        .joint-row {
+            margin-bottom: 15px;
+            width: 100%;
+            display: block; /* Ensures it stacks correctly */
+        }
+
         .slider-label {
-            display: block;
-            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
             font-weight: bold;
             font-size: 0.9em;
+            color: #333;
         }
 
         /* Keyboard Key Styling */
         .key-hint {
-            float: right;
             background: #eee;
             border: 1px solid #ccc;
             border-bottom: 2px solid #bbb;
@@ -97,6 +106,7 @@
             font-family: 'Courier New', Courier, monospace;
             font-size: 12px;
             color: #333;
+            font-weight: normal;
         }
 
         /* RESPONSIVE OVERRIDES */
@@ -120,6 +130,76 @@
                 height: 50vh; /* Canvas takes half the height */
             }
         }
+        
+        /* Custom Slider Styles */
+        input[type=range] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #6c757d;
+            outline: none;
+            margin: 0;
+        }
+
+        /* Track */
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #808080;
+            border-radius: 3px;
+        }
+
+        /* Thumb */
+        input[type=range]::-webkit-slider-thumb {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #808080;
+            cursor: pointer;
+            margin-top: -5px; /* Centers the thumb */
+        }
+
+        /* Track color */
+        input[type=range].range-normal::-webkit-slider-runnable-track {
+            background: #808080;
+        }
+        input[type=range].range-near::-webkit-slider-runnable-track {
+            background: #ffc107;
+        }
+        input[type=range].range-limit::-webkit-slider-runnable-track {
+            background: #dc3545;
+        }
+
+        /* Thumb color */
+        input[type=range].range-normal::-webkit-slider-thumb {
+            background: #808080;
+        }
+        input[type=range].range-near::-webkit-slider-thumb {
+            background: #ffc107;
+        }
+        input[type=range].range-limit::-webkit-slider-thumb {
+            background: #dc3545;
+        }
+                
+        /* Disabled slider (automation running) */
+        input[type=range]:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        input[type=range]:disabled::-webkit-slider-thumb {
+            background: #b0b0b0;
+        }
+
+        input[type=range]:disabled::-webkit-slider-runnable-track {
+            background: #b0b0b0;
+        }
+
     </style>
 </head>
 <body>
@@ -134,26 +214,30 @@
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <h3 style="margin: 0; color: #333;">Robot Control Panel</h3>
                 </div>
-    
+                <hr style="border: none; border-top: 1px solid #eee; margin: 10px 0;"/>
                 <div style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px;">
                     <div style="display: flex; justify-content: space-between; margin-top: 15px;">
                         <strong style="color: #666;">Manual Mode</strong>
                         <span style="font-size: 0.8em; color: #999;">[Keyboard Controls]</span>
                     </div>
-                    
-                    <label class="slider-label">Base Rotation <span class="key-hint">A | D</span></label>
+                    <br>
+                    <div class="joint-row">
+                    <label class="slider-label"><span>Base Rotation</span> <span class="key-hint">A | D</span></label>
                     <input id="slider1" type="range" min="-180" max="180" value="0" style="width:100%"/>
-                    
-                    <label class="slider-label">Lower Arm <span class="key-hint">S | W</span></label>
-                    <input id="slider2" type="range" min="-180" max="180" value="0" style="width:100%"/>
-                    
-                    <label class="slider-label">Upper Arm <span class="key-hint">K | I</span></label>
-                    <input id="slider3" type="range" min="-180" max="180" value="15" style="width:100%"/>
-                    
-                    <label class="slider-label">Wrist Joint <span class="key-hint">J | L</span></label>
-                    <input id="slider4" type="range" min="-90" max="90" value="90" style="width:100%"/>
-                    
-                    <br><br>
+                    </div>
+                    <div class="joint-row">
+                    <label class="slider-label"><span>Lower Arm</span> <span class="key-hint">S | W</span></label>
+                    <input id="slider2" type="range" min="-20" max="90" value="30" style="width:100%"/>
+                    </div>
+                    <div class="joint-row">
+                    <label class="slider-label"><span>Upper Arm</span> <span class="key-hint">K | I</span></label>
+                    <input id="slider3" type="range" min="0" max="135" value="60" style="width:100%"/>
+                    </div>
+                    <div class="joint-row">
+                    <label class="slider-label"><span>Wrist Joint</span> <span class="key-hint">J | L</span></label>
+                    <input id="slider4" type="range" min="0" max="180" value="90" style="width:100%"/>
+                    </div>
+
                     <button id="grabBtn" style="width: 100%; padding: 12px; background: #ff3399; color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 4px;">
                         GRAB / DROP <span style="font-size: 1.0em; opacity: 0.8; font-weight: normal;">[Enter]</span>
                     </button>

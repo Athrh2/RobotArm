@@ -3,7 +3,7 @@
 var canvas, gl, program;
 
 // --- JOINT VARIABLES ---
-var theta = [0, 0, 15, 90]; 
+var theta = [0, 30, 60, 90]; 
 var BASE = 0, LOWER_ARM = 1, UPPER_ARM = 2, WRIST = 3;
 
 // --- DIMENSIONS ---
@@ -63,11 +63,89 @@ function drawSolidCube(w, h, d, color) {
     gl.enableVertexAttribArray(vColorLoc);
 }
 
+// --- JOINT LIMITS (DEGREES) ---
+const JOINT_LIMITS = {
+    BASE:  { min: -180, max: 180 },
+    LOWER: { min: -20,  max: 90  },   // cannot go below table
+    UPPER: { min: 0,    max: 135 },
+    WRIST: { min: 0,  max: 180  }
+};
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function getLimitState(value, min, max) {
+    const threshold = 10; // degrees before limit
+    if (value <= min || value >= max) return "limit";
+    if (value <= min + threshold || value >= max - threshold) return "near";
+    return "normal";
+}
+
 function updateSliderUI() {
-    document.getElementById("slider1").value = theta[BASE];
-    document.getElementById("slider2").value = theta[LOWER_ARM];
-    document.getElementById("slider3").value = theta[UPPER_ARM];
-    document.getElementById("slider4").value = theta[WRIST];
+    const sliders = [
+        document.getElementById("slider1"),
+        document.getElementById("slider2"),
+        document.getElementById("slider3"),
+        document.getElementById("slider4")
+    ];
+
+    const limits = [
+        JOINT_LIMITS.BASE,
+        JOINT_LIMITS.LOWER,
+        JOINT_LIMITS.UPPER,
+        JOINT_LIMITS.WRIST
+    ];
+
+    sliders.forEach((s, i) => {
+        if (!s) return;
+         
+        s.value = theta[i];
+
+        const state = getLimitState(theta[i], limits[i].min, limits[i].max);
+
+        // Slider color feedback
+        if (state === "limit") {
+            s.style.background = "linear-gradient(to right, #dc3545, #dc3545)";
+        } else if (state === "near") {
+            s.style.background = "linear-gradient(to right, #ffc107, #ffc107)";
+        } else {
+            s.style.background = "linear-gradient(to right, #808080, #808080)";
+        }
+
+        s.classList.remove("range-normal", "range-near", "range-limit");
+
+        if (state === "limit") s.classList.add("range-limit");
+        else if (state === "near") s.classList.add("range-near");
+        else s.classList.add("range-normal");
+
+        // Debug Output
+        console.log("Slider", i+1, "| state =", state, "| value =", theta[i]);
+    });
+
+    updateLabel("baseLabel", theta[BASE], JOINT_LIMITS.BASE);
+    updateLabel("lowerLabel", theta[LOWER_ARM], JOINT_LIMITS.LOWER);
+    updateLabel("upperLabel", theta[UPPER_ARM], JOINT_LIMITS.UPPER);
+    updateLabel("wristLabel", theta[WRIST], JOINT_LIMITS.WRIST);
+}
+
+function updateLabel(id, value, limits) {
+    const label = document.getElementById(id);
+    if (!label) return;
+
+    label.innerHTML = value + "°";
+
+    const state = getLimitState(value, limits.min, limits.max);
+    if (state === "limit") {
+        label.style.color = "red";
+        label.title = "Joint at mechanical limit";
+    } else if (state === "near") {
+        label.style.color = "orange";
+        label.title = "Approaching joint limit";
+    } else {
+        label.style.color = "white";
+        label.title = "";
+    }
 }
 
 function performGrab() {
@@ -129,6 +207,17 @@ function handleAutomation() {
             return true;
         }
         theta[index] += (theta[index] < target) ? speed : -speed;
+
+        // APPLY LIMITS
+        if (index === BASE)
+            theta[index] = clamp(theta[index], JOINT_LIMITS.BASE.min, JOINT_LIMITS.BASE.max);
+        if (index === LOWER_ARM)
+            theta[index] = clamp(theta[index], JOINT_LIMITS.LOWER.min, JOINT_LIMITS.LOWER.max);
+        if (index === UPPER_ARM)
+            theta[index] = clamp(theta[index], JOINT_LIMITS.UPPER.min, JOINT_LIMITS.UPPER.max);
+        if (index === WRIST)
+            theta[index] = clamp(theta[index], JOINT_LIMITS.WRIST.min, JOINT_LIMITS.WRIST.max);
+
         return false;
     }
 
@@ -245,31 +334,44 @@ window.onload = function init() {
 
     // UI Listeners
     document.getElementById("slider1").oninput = e => { 
-        theta[BASE] = parseFloat(e.target.value); 
+        theta[BASE] = clamp(parseFloat(e.target.value),
+                         JOINT_LIMITS.BASE.min,
+                         JOINT_LIMITS.BASE.max);
         isAutomating = false;
+        updateSliderUI();
         if (modeLabel) {
             modeLabel.style.color = "#6c757d";
             modeLabel.innerHTML = "Manual Control (Slider)";
         }
     };
     document.getElementById("slider2").oninput = e => { 
-        theta[LOWER_ARM] = parseFloat(e.target.value); 
+        theta[LOWER_ARM] = clamp(parseFloat(e.target.value),
+                         JOINT_LIMITS.LOWER.min,
+                         JOINT_LIMITS.LOWER.max); 
         isAutomating = false; 
+        updateSliderUI();
         if (modeLabel) {
             modeLabel.style.color = "#6c757d";
             modeLabel.innerHTML = "Manual Control (Slider)";
         }
     };
     document.getElementById("slider3").oninput = e => { 
-        theta[UPPER_ARM] = parseFloat(e.target.value); 
-        isAutomating = false; if (modeLabel) {
+        theta[UPPER_ARM] = clamp(parseFloat(e.target.value),
+                         JOINT_LIMITS.UPPER.min,
+                         JOINT_LIMITS.UPPER.max); 
+        isAutomating = false; 
+        updateSliderUI();
+        if (modeLabel) {
             modeLabel.style.color = "#6c757d";
             modeLabel.innerHTML = "Manual Control (Slider)";
         }
     };
     document.getElementById("slider4").oninput = e => { 
-        theta[WRIST] = parseFloat(e.target.value); 
+        theta[WRIST] = clamp(parseFloat(e.target.value),
+                         JOINT_LIMITS.WRIST.min,
+                         JOINT_LIMITS.WRIST.max);
         isAutomating = false; 
+        updateSliderUI();
         if (modeLabel) {
             modeLabel.style.color = "#6c757d";
             modeLabel.innerHTML = "Manual Control (Slider)";
@@ -297,7 +399,7 @@ window.onload = function init() {
     toggleManualControls(true);
 
     // 2. Reset all joint angles to original starting position
-    theta = [0, 0, 15, 90]; 
+    theta = [0, 30, 60, 90]; 
 
     // 3. Reset the object state
     isObjectCaught = false; 
@@ -326,7 +428,7 @@ window.onload = function init() {
     // Wrist: J / L
     // Grab/Release: Enter
     
-    window.addEventListener("keydown", function(e) {
+    window.addEventListener("keydown", function(e) {    
         const key = e.key.toLowerCase();
         const modeLabel = document.getElementById("statusLabel");
 
@@ -355,40 +457,41 @@ window.onload = function init() {
             modeLabel.innerHTML = "Manual Control (Keyboard)";
         }
 
-        switch (e.key.toLowerCase()) {
+        
+        switch (key) {
             case 'a':
-                theta[BASE] -= step;
+                theta[BASE] = clamp(theta[BASE] - step, JOINT_LIMITS.BASE.min, JOINT_LIMITS.BASE.max);
                 updated = true;
                 break;
             case 'd':
-                theta[BASE] += step;
+                theta[BASE] = clamp(theta[BASE] + step, JOINT_LIMITS.BASE.min, JOINT_LIMITS.BASE.max);
                 updated = true;
                 break;
 
             case 'w':
-                theta[LOWER_ARM] += step;
+                theta[LOWER_ARM] = clamp(theta[LOWER_ARM] + step, JOINT_LIMITS.LOWER.min, JOINT_LIMITS.LOWER.max);
                 updated = true;
                 break;
             case 's':
-                theta[LOWER_ARM] -= step;
+                theta[LOWER_ARM] = clamp(theta[LOWER_ARM] - step, JOINT_LIMITS.LOWER.min, JOINT_LIMITS.LOWER.max);
                 updated = true;
                 break;
 
             case 'i':
-                theta[UPPER_ARM] += step;
+                theta[UPPER_ARM] = clamp(theta[UPPER_ARM] + step, JOINT_LIMITS.UPPER.min, JOINT_LIMITS.UPPER.max);
                 updated = true;
                 break;
             case 'k':
-                theta[UPPER_ARM] -= step;
+                theta[UPPER_ARM] = clamp(theta[UPPER_ARM] - step, JOINT_LIMITS.UPPER.min, JOINT_LIMITS.UPPER.max);
                 updated = true;
                 break;
 
             case 'j':
-                theta[WRIST] -= step;
+                theta[WRIST] = clamp(theta[WRIST] - step, JOINT_LIMITS.WRIST.min, JOINT_LIMITS.WRIST.max);
                 updated = true;
                 break;
             case 'l':
-                theta[WRIST] += step;
+                theta[WRIST] = clamp(theta[WRIST] + step, JOINT_LIMITS.WRIST.min, JOINT_LIMITS.WRIST.max);
                 updated = true;
                 break;
 
@@ -406,7 +509,8 @@ window.onload = function init() {
             }
         }
     });
-
+    
+    updateSliderUI();
     render();
 };
 
@@ -422,6 +526,17 @@ function drawGripper(rootMatrix) {
     drawSolidCube(0.3, 1.8, 0.8, vec4(1.0, 0.2, 0.6, 1.0)); 
 }
 
+function drawFixedHinge(worldMatrix, radius, length, color) {
+    var s = scale(radius * 2, length, radius * 2);
+    var m = mult(worldMatrix, s);
+
+    gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(m));
+    gl.disableVertexAttribArray(vColorLoc);
+    gl.vertexAttrib4fv(vColorLoc, color);
+    gl.drawArrays(gl.TRIANGLES, 0, 36);
+    gl.enableVertexAttribArray(vColorLoc);
+}
+
 function render() {
     handleAutomation();
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -429,61 +544,68 @@ function render() {
     // 1. SET GLOBAL CAMERA VIEW
     viewMatrix = mult(rotateX(30), rotateY(25)); 
 
-    // 2. DRAW THE BLACK TABLE (FLOOR) FIRST
-    // This provides a fixed reference point for the arm and the object
+    // 2. DRAW THE TABLE
     modelViewMatrix = mult(viewMatrix, translate(0, -2.0, 0));
     drawSolidCube(20.0, 0.2, 12.0, vec4(0.3, 0.3, 0.3, 1)); 
 
     // --- ROBOT TRANSFORMATION HIERARCHY ---
 
     // 3. THE BASE (Yellow Block)
-    // Position it on the floor level
+    // Position it on the floor level    
     var wRoot = translate(0, -1.9, 0); 
     wRoot = mult(wRoot, rotateY(theta[BASE]));
     
     // 4. LOWER ARM JOINT (Green)
-    // MUST translate to the top of the base (0.5 units up) BEFORE rotating.
-    // This "pins" the bottom of the green arm to the yellow block.
-    var wLower = mult(wRoot, translate(0, 0.5, 0)); 
-    wLower = mult(wLower, rotateZ(theta[LOWER_ARM]));
+    var wLowerPivot = mult(wRoot, translate(0, BASE_H, 0)); // Top of base
+    
+    // Draw Hinge at Pivot
+    // Logic: View * Pivot * Small adjustment for center
+    modelViewMatrix = mult(viewMatrix, wLowerPivot);
+    drawFixedHinge(modelViewMatrix, 0.35, 0.6, vec4(0.2, 0.2, 0.2, 1));
+
+    // Rotate arm around this pivot
+    var wLower = mult(wLowerPivot, rotateZ(theta[LOWER_ARM]));
     
     // 5. UPPER ARM JOINT (Red)
-    // Pin it to the end of the lower arm (4.0 units up)
-    var wUpper = mult(wLower, translate(0, 4.0, 0)); 
-    wUpper = mult(wUpper, rotateZ(theta[UPPER_ARM]));
+    var wUpperPivot = mult(wLower, translate(0, LOWER_H, 0)); // Top of lower arm
+
+    // Draw Hinge at Pivot
+    modelViewMatrix = mult(viewMatrix, wUpperPivot);
+    drawFixedHinge(modelViewMatrix, 0.3, 0.55, vec4(0.2, 0.2, 0.2, 1));
+
+    // Rotate child link
+    var wUpper = mult(wUpperPivot, rotateZ(theta[UPPER_ARM]));
 
     // 6. WRIST & GRIPPER
-    // The wrist is at the end of the upper arm (3.5 units up)
-    var wGripper = mult(wUpper, translate(0, 3.5, 0));
+    var wGripper = mult(wUpper, translate(0, UPPER_H, 0));
     trueWristPosition = vec3(wGripper[0][3], wGripper[1][3], wGripper[2][3]);
 
     // --- DRAWING ACTUAL PARTS ---
 
-    // Draw Yellow Base: Offset by half its height (0.5) to draw correctly
-    modelViewMatrix = mult(viewMatrix, wRoot);
-    modelViewMatrix = mult(modelViewMatrix, translate(0, 0.5, 0)); 
+    // Draw Yellow Base:
+    modelViewMatrix = mult(viewMatrix, mult(wRoot, translate(0, 0.5, 0))); 
     drawSolidCube(5.0, 1.0, 2.0, vec4(1, 1, 0, 1)); 
 
-    // Draw Green Lower Arm: Offset by half its height (2.0)
-    modelViewMatrix = mult(viewMatrix, wLower);
-    modelViewMatrix = mult(modelViewMatrix, translate(0, 2.0, 0)); 
+    // Draw Green Lower Arm: 
+    modelViewMatrix = mult(viewMatrix, mult(wLower, translate(0, 2.0, 0))); 
     drawSolidCube(1.0, 4.0, 1.0, vec4(0, 1, 0, 1)); 
 
-    // Draw Red Upper Arm: Offset by half its height (1.75)
-    modelViewMatrix = mult(viewMatrix, wUpper);
-    modelViewMatrix = mult(modelViewMatrix, translate(0, 1.75, 0)); 
+    // Draw Red Upper Arm: 
+    modelViewMatrix = mult(viewMatrix, mult(wUpper, translate(0, 1.75, 0))); 
     drawSolidCube(1.0, 3.5, 1.0, vec4(1, 0, 0, 1)); 
 
-    // Draw Gripper (oriented by the wrist rotation)
-    drawGripper(mult(mult(viewMatrix, wGripper), rotateY(theta[WRIST])));
+    // Draw Gripper
+    var gripperFinalM = mult(viewMatrix, wGripper);
+    gripperFinalM = mult(gripperFinalM, rotateY(theta[WRIST]));
+    drawGripper(gripperFinalM);
 
     // 7. DRAW RED OBJECT
     if (isObjectCaught) {
-        // Parented to the gripper: use gripper matrix and offset for fingers
-        modelViewMatrix = mult(mult(mult(viewMatrix, wGripper), rotateY(theta[WRIST])), translate(0, 1.4, 0));
+        // Parented to Gripper
+        modelViewMatrix = mult(gripperFinalM, translate(0, 1.4, 0));
         drawSolidCube(1.0, 1.0, 1.0, vec4(1, 0, 0, 1)); 
     } else {
-        // Static on floor: use viewMatrix + global objectPosition
+        // Static on floor
         modelViewMatrix = mult(viewMatrix, translate(objectPosition[0], objectPosition[1], objectPosition[2]));
         drawSolidCube(1.0, 1.0, 1.0, vec4(1, 0, 0, 1)); 
     }
