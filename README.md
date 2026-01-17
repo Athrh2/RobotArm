@@ -6,15 +6,15 @@ This project is developed as part of an academic assignment on CPC354 Interactiv
 - Digital twin simulation concepts
 
 🎯 Automated Pick-and-Place Animation
-• State-machine-based automation sequence:
+- State-machine-based automation sequence:
 1. Base alignment
 2. Reach object
 3. Grasp object
 4. Lift object
 5. Move to target location
 6. Release object
-• Start, stop, and reset controls
-• Safe interruption and failure handling
+- Start, stop, and reset controls
+- Safe interruption and failure handling
 
 🎮 Controls
 Manual Controls
