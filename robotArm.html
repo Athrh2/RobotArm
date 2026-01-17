@@ -5,19 +5,75 @@
     <title>Robot Arm - Responsive Console</title>
     <script id="vertex-shader" type="x-shader/x-vertex">
         attribute vec4 vPosition;
-        attribute vec4 vColor; 
-        varying vec4 fColor;
+        attribute vec3 vNormal;
+        varying vec3 fNormal;
+        varying vec3 fPosition;
+
         uniform mat4 modelViewMatrix;
         uniform mat4 projectionMatrix;
+        uniform mat3 normalMatrix;
+
         void main() {
+            // Transform vertex position into eye coordinates
+            vec3 pos = (modelViewMatrix * vPosition).xyz;
+            fPosition = pos;
+            
+            // Transform normal into eye coordinates
+            fNormal = normalize(normalMatrix * vNormal);
+            
             gl_Position = projectionMatrix * modelViewMatrix * vPosition;
-            fColor = vColor;
         }
     </script>
     <script id="fragment-shader" type="x-shader/x-fragment">
         precision mediump float;
-        varying vec4 fColor;
-        void main() { gl_FragColor = fColor; }
+
+        varying vec3 fNormal;
+        varying vec3 fPosition;
+
+        uniform vec4 ambientProduct, diffuseProduct, specularProduct;
+        uniform vec4 lightPosition;
+        uniform float shininess;
+
+        void main() {
+            // Normalize interpolated vectors
+            vec3 N = normalize(fNormal);
+            vec3 V = normalize(-fPosition);
+
+            // Use the actual lightPosition uniform
+            vec3 L1;
+            if(lightPosition.w == 0.0) L1 = normalize(lightPosition.xyz);
+            else L1 = normalize(lightPosition.xyz - fPosition);
+            
+            float diff1 = max(dot(L1, N), 0.0);
+            
+            // Fill light (cooler, softer, from left)
+            vec3 L2 = normalize(vec3(-0.4, 0.2, 0.1));
+            float diff2 = max(dot(L2, N), 0.0) * 0.3;
+            
+            // Subtle rim light for edge definition
+            float rim = 1.0 - max(dot(V, N), 0.0);
+            rim = pow(rim, 4.0) * 0.4;
+            
+            // Ambient (reduced to create more contrast)
+            vec4 ambient = ambientProduct;
+            
+            // Diffuse (combine main and fill lights)
+            vec4 diffuse = (diff1 + diff2) * diffuseProduct;
+            
+            // Specular (only from main light, softer)
+            vec3 H = normalize(L1 + V);
+            float spec = pow(max(dot(N, H), 0.0), shininess);
+            vec4 specular = spec * specularProduct * 0.4; // Reduced specular intensity
+            
+            // Remove specular if light is behind surface
+            if(dot(L1, N) < 0.0) specular = vec4(0.0);
+            
+            // Subtle blue rim to simulate environment reflection
+            vec4 rimColor = vec4(0.15, 0.18, 0.22, 0.0) * rim;
+            
+            gl_FragColor = ambient + diffuse + specular + rimColor;
+            gl_FragColor.a = 1.0;
+        }
     </script>
     <script type="text/javascript" src="Common/webgl-utils.js"></script>
     <script type="text/javascript" src="Common/initShaders.js"></script>
@@ -25,75 +81,142 @@
     
     <style>
         html, body {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            background-color: #f0f0f0;
-            font-family: sans-serif;
-            overflow: hidden; /* Prevents double scrollbars */
+            margin: 0; padding: 0; height: 100%;
+            background-color: #f0f0f0; font-family: sans-serif;
+            overflow: hidden; /* Prevent the whole browser from scrolling */
         }
 
-        /* The main layout container */
         #app {
             display: flex;
-            flex-direction: row;
+            flex-direction: row; /* Desktop: Side-by-side */
             height: 100vh;
             width: 100vw;
         }
 
-        /* Left side: Canvas */
         #canvasContainer {
-            flex: 1;
+            flex: 1; /* Take up remaining space */
             display: flex;
             justify-content: center;
             align-items: center;
             background: #b1cfbb;
-            padding: 20px;
+            padding: 10px;
+            min-height: 0; /* Important for flex-shrink */
+            background: linear-gradient(rgba(145, 58, 185, 0.8), rgba(78, 78, 78, 0.5));
         }
 
         canvas {
-            border: 1px solid black;
+            border: 1px solid #444;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
             background: white;
             max-width: 100%;
             max-height: 100%;
-            height: auto;
-            display: block;
+            object-fit: contain; /* Keeps robot centered and visible */
         }
 
-        /* Right side: Sidebar Scroll Area */
         #sidebar {
-            flex: 0 0 400px; /* Fixed width on desktop */
-            overflow-y: auto;
+            flex: 0 0 400px; /* Fixed width */
+            overflow-y: auto; 
+            background: #3f4c68e5;
+            padding: 15px;
+            box-sizing: border-box;
             display: flex;
-            justify-content: center; /* Centers your shadow box */
+            flex-direction: column;
             align-items: center;
-            padding: 20px 0;
-            background: #fbd5d5;
+            overflow-y: auto; /* Scroll only the sidebar */
+        }
+        
+        /* 1. FORCING SCROLLBAR VISIBILITY ON MOBILE */
+        #sidebar {
+            /* Important for iOS smooth scrolling */
+            -webkit-overflow-scrolling: touch; 
+            overflow-y: auto;
         }
 
-        /* ORIGINAL SHADOW BOX */
+        /* Custom scrollbar styling that stays visible */
+        #sidebar::-webkit-scrollbar {
+            width: 8px; /* Slightly thinner for mobile elegance */
+            display: block !important; 
+        }
+
+        #sidebar::-webkit-scrollbar-thumb {
+            background: #6366f1; 
+            border-radius: 10px;
+            border: 2px solid #0f172a; /* Gap makes it look like it's floating */
+        }
+
+        #sidebar::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5); /* Dark track */
+        }
+
+        /* Custom Slider Styles */
+        input[type=range] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 100%;
+            height: 20px; 
+            background: transparent;
+            outline: none;
+            margin: 0;
+        }
+
+        /* Track */
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #808080;
+            border-radius: 3px;
+            border: none;
+        }
+
+        /* Thumb - The circle you grab */
+        input[type=range]::-webkit-slider-thumb {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #808080;
+            cursor: pointer;
+            margin-top: -5px; 
+            border: none;
+        }
+
+        input[type=range]::-moz-range-track {
+            height: 6px;
+            background: #808080;
+            border-radius: 3px;
+        }
+
+        input[type=range]::-moz-range-thumb {
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #808080;
+        }
+
+        /* --- COMPACT CARD STYLING --- */
         .control-card {
-            padding: 20px; 
+            padding: 12px; 
             background: #fff; 
             border-radius: 8px; 
-            width: 320px; 
+            width: 90%; 
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
         .joint-row {
-            margin-bottom: 15px;
+            margin-bottom: 8px;
             width: 100%;
-            display: block; /* Ensures it stacks correctly */
+            justify-content: center;
         }
 
         .slider-label {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 8px;
-            font-weight: bold;
             font-size: 0.9em;
-            color: #333;
+            margin-bottom: 4px;
+            color: #444;
         }
 
         /* Keyboard Key Styling */
@@ -109,28 +232,28 @@
             font-weight: normal;
         }
 
-        /* RESPONSIVE OVERRIDES */
+        h3 { margin: 0 0 10px 0; font-size: 1.1em; }
+        hr { border: none; border-top: 1px solid #eee; margin: 8px 0; }
+        .section-title { font-size: 0.85em; font-weight: bold; color: #666; }
+
+        /* --- MOBILE OPTIMIZATION --- */
         @media (max-width: 850px) {
             #app {
-                flex-direction: column; /* Stacks canvas on top of controls */
-                overflow-y: auto; 
-            }
-            #sidebar {
-                flex: none;
-                width: 100%;
-                padding: 20px;
-                box-sizing: border-box;
-            }
-            .control-card {
-                width: 100%; /* Box stretches to fit screen width on mobile */
-                box-sizing: border-box;
+                flex-direction: column; /* Stack vertically */
             }
             #canvasContainer {
-                flex: none;
-                height: 50vh; /* Canvas takes half the height */
+                flex: 0 0 45vh; /* Fixed height: Robot takes top 40% of screen */
+                padding: 5px;
+                z-index: 10;
+                box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+            }
+            #sidebar {
+                flex: 1; /* Sidebar takes remaining 60% and scrolls */
+                width: 100%;
+                padding-top: 20px;
             }
         }
-        
+       
         /* Custom Slider Styles */
         input[type=range] {
             appearance: none;
@@ -138,7 +261,6 @@
             width: 100%;
             height: 6px;
             border-radius: 3px;
-            background: #6c757d;
             outline: none;
             margin: 0;
         }
@@ -223,6 +345,18 @@
                 </div>
                 <hr style="border: none; border-top: 1px solid #eee; margin: 10px 0;"/>
                 <div style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px;">
+                    <strong style="color: #666;">Camera View</strong>
+                    <br><br>
+                    <div class="joint-row">
+                        <label class="slider-label"><span>Vertical Tilt</span></label>
+                        <input id="camTilt" type="range" min="0" max="90" value="30" aria-label="Camera Vertical Tilt"/>
+                    </div>
+                    <div class="joint-row">
+                        <label class="slider-label"><span>Horizontal Pan</span></label>
+                        <input id="camPan" type="range" min="-180" max="180" value="25" aria-label="Camera Horizontal Pan"/>
+                    </div>
+                </div>
+                <div style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px;">
                     <div style="display: flex; justify-content: space-between; margin-top: 15px;">
                         <strong style="color: #666;">Manual Mode</strong>
                         <span style="font-size: 0.8em; color: #999;">[Keyboard Controls]</span>
@@ -230,19 +364,19 @@
                     <br>
                     <div class="joint-row">
                     <label class="slider-label"><span>Base Rotation</span> <span class="key-hint">A | D</span></label>
-                    <input id="slider1" type="range" min="-180" max="180" value="0" style="width:100%"/>
+                    <input id="slider1" type="range" min="-180" max="180" value="0"/>
                     </div>
                     <div class="joint-row">
                     <label class="slider-label"><span>Lower Arm</span> <span class="key-hint">S | W</span></label>
-                    <input id="slider2" type="range" min="-20" max="90" value="30" style="width:100%"/>
+                    <input id="slider2" type="range" min="0" max="90" value="25"/>
                     </div>
                     <div class="joint-row">
                     <label class="slider-label"><span>Upper Arm</span> <span class="key-hint">K | I</span></label>
-                    <input id="slider3" type="range" min="0" max="135" value="60" style="width:100%"/>
+                    <input id="slider3" type="range" min="40" max="135" value="80"/>
                     </div>
                     <div class="joint-row">
                     <label class="slider-label"><span>Wrist Joint</span> <span class="key-hint">J | L</span></label>
-                    <input id="slider4" type="range" min="0" max="180" value="90" style="width:100%"/>
+                    <input id="slider4" type="range" min="0" max="180" value="90"/>
                     </div>
 
                     <button id="grabBtn" style="width: 100%; padding: 12px; background: #ff3399; color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 4px;">
@@ -250,7 +384,7 @@
                     </button>
                     </div>
 
-                    <div style="background: #eef2f7; padding: 15px; border-radius: 5px;">
+                    <div style="background: #eef2f7; padding: 10px; border-radius: 5px;">
                         <strong>Automation (Pick & Place)</strong><br><br>
                         <button id="autoStartStopBtn" style="width: 100%; padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
                             ▶ Start/Pause <span style="font-size: 1.0em; opacity: 0.8; font-weight: normal;">[Space]</span>
