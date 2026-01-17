@@ -16,8 +16,7 @@ This project is developed as part of an academic assignment on CPC354 Interactiv
 - Start, stop, and reset controls
 - Safe interruption and failure handling
 
-🎮 Controls
-Manual Controls
+🎮 Manual Controls
 | Action                 | Control  |
 | ---------------------- | -------- |
 | Rotate Base            | A / D    |
