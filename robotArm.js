@@ -266,7 +266,7 @@ function performGrab() {
         var dy = trueWristPosition[1] - objectPosition[1];
         var dz = trueWristPosition[2] - objectPosition[2];
         var dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-        if (dist < 4.5) { 
+        if (dist < 1.4) { 
             isObjectCaught = true; 
             gripperGap = 0.0; 
             if(msg) {
