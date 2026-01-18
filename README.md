@@ -1,9 +1,11 @@
 📘 Academic Context
+
 This project is developed as part of an academic assignment on CPC354 Interactive Computer Graphics, focusing on:
 - Hierarchical modeling
 - Articulated animation
 - Human–computer interaction
 - Digital twin simulation concepts
+
 
 🎯 Automated Pick-and-Place Animation
 - State-machine-based automation sequence:
@@ -16,16 +18,18 @@ This project is developed as part of an academic assignment on CPC354 Interactiv
 - Start, stop, and reset controls
 - Safe interruption and failure handling
 
-🎮 Manual Controls
+
+🎮 Keyboard Controls
 | Action                 | Control  |
 | ---------------------- | -------- |
 | Rotate Base            | A / D    |
 | Move Lower Arm         | W / S    |
 | Move Upper Arm         | I / K    |
 | Rotate Wrist           | J / L    |
-| Grab / Release Object  | Enter    |
+| Grab/Release Object    | Enter    |
 | Start/Pause Automation | Spacebar |
 | Reset System           | R        |
+
 
 🚀 How to Run
 1. Clone or download this repository
